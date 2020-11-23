@@ -1,0 +1,16 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TLS.ProtocolTester", "TLS.ProtocolTester\TLS.ProtocolTester.csproj", "{80DDA1B3-46CE-4740-A1CA-6BEF6D1C2661}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{80DDA1B3-46CE-4740-A1CA-6BEF6D1C2661}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{80DDA1B3-46CE-4740-A1CA-6BEF6D1C2661}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{80DDA1B3-46CE-4740-A1CA-6BEF6D1C2661}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{80DDA1B3-46CE-4740-A1CA-6BEF6D1C2661}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
