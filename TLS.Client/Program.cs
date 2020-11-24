@@ -19,7 +19,7 @@ namespace TLS.Client
     internal class Program
     {
         [Option("-t|--target", Description = "The target endpoint to query. Defaults to 127.0.0.1")]
-        private string TargetEndpoint { get; } = IPAddress.Loopback.MapToIPv4().ToString();
+        private string Target { get; } = IPAddress.Loopback.MapToIPv4().ToString();
 
         [Option("-p|--port", Description = "The port to connect on. Defaults to 443.")]
         private int Port { get; } = 443;
@@ -35,7 +35,7 @@ namespace TLS.Client
         {
             Log.Logger = new LoggerConfiguration()
                 .MinimumLevel.Is(LogEventLevel)
-                //.MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+                .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
                 .Enrich.FromLogContext()
                 .WriteTo.Console()
                 .CreateLogger();
@@ -62,34 +62,34 @@ namespace TLS.Client
         private async Task CreateTlsClientAsync(CommandLineApplication app,
             CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(TargetEndpoint))
+            if (string.IsNullOrWhiteSpace(Target))
             {
+                Log.Error("Invalid target, please provide a valid DNS host or IP");
                 app.ShowHelp();
             }
             
             var status = new ProtocolStatus
             {
-                TargetEndpoint = TargetEndpoint,
+                Target = Target,
                 Port = Port
             };
 
-            Log.Information("Created an empty result set ready for processing: {@status}", status);
-
-            Log.Information("Testing against list of known protocols.\n");
-
+            Log.Verbose("ProtocolStatus: {@status}\n", status);
+            
             foreach (SslProtocols protocol in Enum.GetValues(typeof(SslProtocols)))
             {
-                Log.Verbose("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-");
-                Log.Verbose("Begin building test for protocol [{@protocol}]", protocol);
+                Log.Information("Testing protocol [{@protocol}]", protocol);
                 
                 var client = new TcpClient();
 
                 try
                 {
-                    Log.Verbose($"Attempting to connect to [{TargetEndpoint}:{Port}]");
+                    Log.Verbose($"Creating connection to [{Target}:{Port}]");
 
-                    await client.ConnectAsync(TargetEndpoint, Port);
+                    await client.ConnectAsync(Target, Port);
+                    
                     status.ConnectionSuccessful = true;
+                    
                     Log.Verbose("Connection [{@result}]", 
                         status.ConnectionSuccessful ? "Successful" : "Unsuccessful");
                 }
@@ -101,17 +101,15 @@ namespace TLS.Client
                         status.ConnectionSuccessful ? "Successful" : "Unsuccessful");
                 }
 
-                Log.Verbose("Creating SSL/TLS connection stream");
-
                 var sslStream = new SslStream(client.GetStream(), false);
-
+                
                 try
                 {
-                    Log.Verbose($"Attempting to authenticate as a client via protocol [{protocol}]");
+                    Log.Verbose("Authenticating via protocol [{@protocol}]", protocol);
 
                     await sslStream.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
                     {
-                        TargetHost = TargetEndpoint,
+                        TargetHost = Target,
                         EnabledSslProtocols = protocol,
                         CertificateRevocationCheckMode = X509RevocationMode.NoCheck,
                         RemoteCertificateValidationCallback = RemoteCertificateValidationCallback
@@ -119,6 +117,7 @@ namespace TLS.Client
                     
                     Log.Verbose("Authentication [{@result}]", 
                         sslStream.IsAuthenticated ? "Successful" : "Unsuccessful");
+                    
                     Log.Verbose("Gathering certificate details");
                     
                     status.Certificate = new Certificate
@@ -129,7 +128,7 @@ namespace TLS.Client
                         NotAfter = sslStream.RemoteCertificate?.GetExpirationDateString(),
                     };
 
-                    Log.Verbose($"Adding successful attempt for protocol [{protocol}]");
+                    Log.Verbose("Adding successful attempt for protocol [{@protocol}]", protocol);
 
                     status.Protocols.Add(protocol, true);
                 }
@@ -147,15 +146,13 @@ namespace TLS.Client
                 }
                 finally
                 {
-                    Log.Verbose("Closing the SSL/TLS connection stream");
+                    Log.Verbose("Closing the SSL/TLS connection stream\n");
 
                     sslStream.Close();
-
-                    Log.Verbose("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-\n");
                 }
             }
 
-            Console.WriteLine(JsonConvert.SerializeObject(status, Formatting.Indented));
+            Console.WriteLine("\n" + JsonConvert.SerializeObject(status, Formatting.Indented));
         }
 
         private static bool RemoteCertificateValidationCallback(object sender, X509Certificate certificate,
@@ -168,7 +165,7 @@ namespace TLS.Client
 
     internal class ProtocolStatus
     {
-        public string TargetEndpoint { get; set; }
+        public string Target { get; set; }
         public int Port { get; set; }
         public bool ConnectionSuccessful { get; set; }
         public Dictionary<SslProtocols, bool> Protocols { get; } = new Dictionary<SslProtocols, bool>();

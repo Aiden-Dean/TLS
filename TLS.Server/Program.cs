@@ -7,12 +7,13 @@ using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
+using Serilog;
+using Serilog.Events;
 
 namespace TLS.Server
 {
     [Command(Description = "A server applet that listens for incoming socket connections to test TLS.")]
     [HelpOption("-?")]
-    // ReSharper disable once ClassNeverInstantiated.Global
     internal class Program
     {
         [Option("-cf|--certFile", Description = "The machine certificate to be used to create a secure channel. " +
@@ -26,6 +27,9 @@ namespace TLS.Server
 
         [Option("-p|--port", Description = "The port to communicate via. Defaults to 443.")]
         private int Port { get; } = 443;
+        
+        [Option("-l|--logEventLevel", Description = "The verbosity of the output from the app processing. Defaults to [Information]")] 
+        private LogEventLevel LogEventLevel { get; } = LogEventLevel.Information;
 
         private static async Task<int> Main(string[] args) =>
             await CommandLineApplication.ExecuteAsync<Program>(args);
@@ -33,20 +37,52 @@ namespace TLS.Server
         private async Task<int> OnExecuteAsync(CommandLineApplication app,
             CancellationToken cancellationToken = default)
         {
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Is(LogEventLevel)
+                .MinimumLevel.Override("Microsoft", LogEventLevel.Information)
+                .Enrich.FromLogContext()
+                .WriteTo.Console()
+                .CreateLogger();
+
+            try
+            {
+                Log.Information("Starting up...\n");
+
+                await CreateTlsServerAsync(app, cancellationToken);
+            }
+            catch (Exception e)
+            {
+                Log.Fatal(e, "Host terminated unexpectedly");
+                return 0;
+            }
+            finally
+            {
+                Log.CloseAndFlush();
+            }
+
+            return 1;
+        }
+        
+        private async Task CreateTlsServerAsync(CommandLineApplication app,
+            CancellationToken cancellationToken = default)
+        {
             if (string.IsNullOrWhiteSpace(CertificateFile))
             {
+                Log.Error("Invalid certificate, please provide a valid certificate");
                 app.ShowHelp();
-                return 0;
+                return;
             }
 
             _certificate = new X509Certificate(CertificateFile, CertificatePassword);
 
+            Log.Verbose("Certificate loaded: {@certificate}\n", _certificate);
+            
             var listener = new TcpListener(IPAddress.Any, Port);
             listener.Start();
 
             while (true)
             {
-                Console.WriteLine("Waiting for a client to connect...");
+                Log.Information("Waiting for a client to connect...");
                 var client = await listener.AcceptTcpClientAsync();
                 await ProcessClientConnectionAsync(client, cancellationToken);
             }
@@ -72,72 +108,77 @@ namespace TLS.Server
             }
             catch (Exception e)
             {
-                Console.WriteLine("Exception: {0}", e.Message);
+                Log.Information("Exception: [{0}]", e.Message);
                 if (e.InnerException != null)
                 {
-                    Console.WriteLine("Inner exception: {0}", e.InnerException.Message);
+                    Log.Information("Inner exception: [{0}]", e.InnerException.Message);
                 }
-                Console.WriteLine ("Authentication failed - closing the connection.");
+                Log.Information ("Authentication failed - closing the connection.\n");
             }
             finally
             {
                 sslStream.Close();
                 client.Close();
-                Console.WriteLine();
             }
         }
 
         private static void DisplaySecurityLevel(SslStream stream)
         {
-            Console.WriteLine("Cipher: {0} strength {1}", stream.CipherAlgorithm, stream.CipherStrength);
-            Console.WriteLine("Hash: {0} strength {1}", stream.HashAlgorithm, stream.HashStrength);
-            Console.WriteLine("Key exchange: {0} strength {1}", stream.KeyExchangeAlgorithm,
+            Log.Verbose("Security Details");
+            Log.Verbose("Cipher: [{0}] strength [{1}]", stream.CipherAlgorithm, stream.CipherStrength);
+            Log.Verbose("Hash: [{0}] strength [{1}]", stream.HashAlgorithm, stream.HashStrength);
+            Log.Verbose("Key exchange: [{0}] strength [{1}]", stream.KeyExchangeAlgorithm,
                 stream.KeyExchangeStrength);
-            Console.WriteLine("Protocol: {0}", stream.SslProtocol);
+            Log.Verbose("Protocol: [{0}]\n", stream.SslProtocol);
         }
 
         private static void DisplaySecurityServices(AuthenticatedStream stream)
         {
-            Console.WriteLine("Is authenticated: {0} as server? {1}", stream.IsAuthenticated, stream.IsServer);
-            Console.WriteLine("IsSigned: {0}", stream.IsSigned);
-            Console.WriteLine("Is Encrypted: {0}", stream.IsEncrypted);
+            Log.Verbose("Authentication Details");
+            Log.Verbose("Authenticated: [{0}]", stream.IsAuthenticated);
+            Log.Verbose("As Server: [{0}]", stream.IsServer);
+            Log.Verbose("Signed: [{0}]", stream.IsSigned);
+            Log.Verbose("Encrypted: [{0}]\n", stream.IsEncrypted);
         }
 
         private static void DisplayStreamProperties(Stream stream)
         {
-            Console.WriteLine("Can read: {0}, write {1}", stream.CanRead, stream.CanWrite);
-            Console.WriteLine("Can timeout: {0}", stream.CanTimeout);
+            Log.Verbose("Stream Details");
+            Log.Verbose("Can Read: [{0}]", stream.CanRead);
+            Log.Verbose("Can Write: [{0}]", stream.CanWrite);
+            Log.Verbose("Can Timeout: [{0}]\n", stream.CanTimeout);
         }
 
         private static void DisplayCertificateInformation(SslStream stream)
         {
-            Console.WriteLine("Certificate revocation list checked: {0}", stream.CheckCertRevocationStatus);
+            Log.Verbose("Certificate Details");
+            Log.Verbose("Certificate revocation list checked: [{0}]", stream.CheckCertRevocationStatus);
 
             var localCertificate = stream.LocalCertificate;
             if (stream.LocalCertificate != null)
             {
-                Console.WriteLine("Local cert was issued to {0} and is valid from {1} until {2}.",
+                Log.Verbose("Local cert was issued to [{0}] and is valid from [{1}] until [{2}].",
                     localCertificate.Subject,
                     localCertificate.GetEffectiveDateString(),
                     localCertificate.GetExpirationDateString());
             }
             else
             {
-                Console.WriteLine("Local certificate is null.");
+                Log.Verbose("Local certificate is null.");
             }
 
             // Display the properties of the client's certificate.
             var remoteCertificate = stream.RemoteCertificate;
             if (stream.RemoteCertificate != null)
             {
-                Console.WriteLine("Remote cert was issued to {0} and is valid from {1} until {2}.",
+                Log.Verbose("Remote cert was issued to [{0}] and is valid from [{1}] until [{2}].\n",
                     remoteCertificate?.Subject,
                     remoteCertificate?.GetEffectiveDateString(),
                     remoteCertificate?.GetExpirationDateString());
             }
             else
             {
-                Console.WriteLine("Remote certificate is null.");
+                Log.Verbose("Remote certificate is null.\n");
             }
         }
     }
