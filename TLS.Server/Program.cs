@@ -17,19 +17,32 @@ namespace TLS.Server
     internal class Program
     {
         [Option("-cf|--certFile", Description = "The machine certificate to be used to create a secure channel. " +
-                                           "Defaults to example cert included in the build.")]
+                                                "Defaults to example cert included in the build.")]
         private string CertificateFile { get; } = Path.Combine(Environment.CurrentDirectory, "example.pfx");
 
-        [Option("-cp|--certPass", Description = "The password to open an encrypted machine certificate.")] 
+        [Option("-cp|--certPass", Description = "The password to open an encrypted machine certificate.")]
         private string CertificatePassword { get; } = "test1234";
-
-        private static X509Certificate _certificate;
-
+        
+        [Option("-ct|--certThumbprint",
+            Description = "The thumbprint of the certificate to fetch from the cert store, windows only for now.")]
+        private string CertificateThumbprint { get; } = null;
+        
+        [Option("-sn|--storeName",
+            Description = "The name of the certificate store to lookup a certificate thumbprint in, windows only for now, defaults to [My].")]
+        private StoreName StoreName { get; } = StoreName.My;
+        
+        [Option("-sl|--storeLocation",
+            Description = "The location of the certificate store to lookup a certificate thumbprint in, windows only for now, defaults to [LocalMachine].")]
+        private StoreLocation StoreLocation { get; } = StoreLocation.LocalMachine;
+        
         [Option("-p|--port", Description = "The port to communicate via. Defaults to 443.")]
         private int Port { get; } = 443;
-        
-        [Option("-l|--logEventLevel", Description = "The verbosity of the output from the app processing. Defaults to [Information]")] 
+
+        [Option("-l|--logEventLevel",
+            Description = "The verbosity of the output from the app processing. Defaults to [Information]")]
         private LogEventLevel LogEventLevel { get; } = LogEventLevel.Information;
+        
+        private static X509Certificate _certificate;
 
         private static async Task<int> Main(string[] args) =>
             await CommandLineApplication.ExecuteAsync<Program>(args);
@@ -62,21 +75,29 @@ namespace TLS.Server
 
             return 1;
         }
-        
+
         private async Task CreateTlsServerAsync(CommandLineApplication app,
             CancellationToken cancellationToken = default)
         {
-            if (string.IsNullOrWhiteSpace(CertificateFile))
+            if (!string.IsNullOrWhiteSpace(CertificateThumbprint))
             {
-                Log.Error("Invalid certificate, please provide a valid certificate");
+                var store = new X509Store(StoreName, StoreLocation);
+                var certCollection = store.Certificates.Find(X509FindType.FindByThumbprint, CertificateThumbprint, false);
+                _certificate = certCollection.GetEnumerator().Current;
+            }
+            else if (!string.IsNullOrWhiteSpace(CertificateFile))
+            {
+                _certificate = new X509Certificate(CertificateFile, CertificatePassword);
+            }
+            else
+            {
+                Log.Error("Unable to load certificate, please provide a valid certificate");
                 app.ShowHelp();
                 return;
             }
 
-            _certificate = new X509Certificate(CertificateFile, CertificatePassword);
-
             Log.Verbose("Certificate loaded: {@certificate}\n", _certificate);
-            
+
             var listener = new TcpListener(IPAddress.Any, Port);
             listener.Start();
 
@@ -88,7 +109,8 @@ namespace TLS.Server
             }
         }
 
-        private static async Task ProcessClientConnectionAsync(TcpClient client, CancellationToken cancellationToken = default)
+        private static async Task ProcessClientConnectionAsync(TcpClient client,
+            CancellationToken cancellationToken = default)
         {
             var sslStream = new SslStream(client.GetStream(), false);
 
@@ -113,7 +135,8 @@ namespace TLS.Server
                 {
                     Log.Information("Inner exception: [{0}]", e.InnerException.Message);
                 }
-                Log.Information ("Authentication failed - closing the connection.\n");
+
+                Log.Information("Authentication failed - closing the connection.\n");
             }
             finally
             {
