@@ -13,7 +13,7 @@ Along with it comes a server applet which listens for incoming connections on a 
 that you do not have an accessible endpoint on the machine to test against.
 
 ## Usage
-####TLS.Client
+###TLS.Client
 ```
 TLS.Client -?
 A simple app to test SSL/TLS protocols for a specified endpoint.
@@ -27,7 +27,7 @@ Options:
   -l|--logEventLevel  The verbosity of the output from the app processing. Defaults to [Information]
 ```
 
-####TLS.Server
+###TLS.Server
 ```
 TLS.Server -?
 A server applet that listens for incoming socket connections to test TLS.
