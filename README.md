@@ -7,9 +7,10 @@ disable/enable protocols and cypher suites but testing if it has worked or not r
 running on the server to test against which might not always be available or it may be too late to check
 when the service is degraded beyond use.
 
-This is my attempt at an answer to this problem, a client applet which will try to create a connection
+This is my attempt at an answer to this problem, a TLS client applet which will try to create a connection
 to a specified endpoint (IP or DNS), open an SSL stream and print out the results.
-Along with it comes a server applet which listens for incoming connections on a specified port in the event
+
+There is also a TLS server applet which listens for incoming connections on a specified port in the event
 that you do not have an accessible endpoint on the machine to test against.
 
 ## Usage
