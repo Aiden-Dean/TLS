@@ -43,4 +43,4 @@ Options:
 ```
 
 ## Images
-![Before](/before.jpeg?raw=true "Before")
+![Before](/before.png?raw=true "Before")
