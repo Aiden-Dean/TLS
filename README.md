@@ -1,17 +1,14 @@
 # TLS Tester
-Over the years now I keep being asked how we can test if the various versions of SSL and TLS are truly
-disabled on a machine. 
+Over the years now the industry has been trying to deprecate insecure versions of SSL and TLS across the web and there are many great tools out there to help in this process like [IISCrypto](https://www.nartac.com/Products/IISCrypto/), which allows administrators to easily enable/disable protocols and cypher suites on Windows servers.
 
-Through [IISCrypto](https://www.nartac.com/Products/IISCrypto/), administrators have the ability to
-disable/enable protocols and cypher suites but testing if it has worked or not requires an application
-running on the server to test against which might not always be available or it may be too late to check
-when the service is degraded beyond use.
+This is my attempt at furthering this effort by providing a tool that will allow you to test each protocol on a machine to see if you are compliant with industry standards.
 
-This is my attempt at an answer to this problem, a TLS client applet which will try to create a connection
-to a specified endpoint (IP or DNS), open an SSL stream and print out the results.
+In this repo currently is:
 
-There is also a TLS server applet which listens for incoming connections on a specified port in the event
-that you do not have an accessible endpoint on the machine to test against.
+- a TLS client console app that will connect to an IP or DNS host on a specified port and attempt to create a secure connection over each available protocol and print the results.
+- a TLS server console app that will listen for incoming connections with an SSL certificate and respond only on protocols that are mutually supported
+
+Both can be run from the same machine, across a network or over the internet (providing the port you are listening on is publicly available) depending on your Client/Server protocol requirements.
 
 ## Usage
 **TLS.Client**
