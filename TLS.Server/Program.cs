@@ -22,26 +22,28 @@ namespace TLS.Server
 
         [Option("-cp|--certPass", Description = "The password to open an encrypted machine certificate.")]
         private string CertificatePassword { get; } = "test1234";
-        
+
         [Option("-ct|--certThumbprint",
             Description = "The thumbprint of the certificate to fetch from the cert store, windows only for now.")]
         private string CertificateThumbprint { get; } = null;
-        
+
         [Option("-sn|--storeName",
-            Description = "The name of the certificate store to lookup a certificate thumbprint in, windows only for now, defaults to [My].")]
+            Description =
+                "The name of the certificate store to lookup a certificate thumbprint in, windows only for now, defaults to [My].")]
         private StoreName StoreName { get; } = StoreName.My;
-        
+
         [Option("-sl|--storeLocation",
-            Description = "The location of the certificate store to lookup a certificate thumbprint in, windows only for now, defaults to [LocalMachine].")]
-        private StoreLocation StoreLocation { get; } = StoreLocation.LocalMachine;
-        
+            Description =
+                "The location of the certificate store to lookup a certificate thumbprint in, windows only for now, defaults to [CurrentUser].")]
+        private StoreLocation StoreLocation { get; } = StoreLocation.CurrentUser;
+
         [Option("-p|--port", Description = "The port to communicate via. Defaults to 443.")]
-        private int Port { get; } = 443;
+        private int Port { get; } = 4433;
 
         [Option("-l|--logEventLevel",
             Description = "The verbosity of the output from the app processing. Defaults to [Information]")]
         private LogEventLevel LogEventLevel { get; } = LogEventLevel.Information;
-        
+
         private static X509Certificate _certificate;
 
         private static async Task<int> Main(string[] args) =>
@@ -82,14 +84,27 @@ namespace TLS.Server
             if (!string.IsNullOrWhiteSpace(CertificateThumbprint))
             {
                 var store = new X509Store(StoreName, StoreLocation);
-                var certCollection = store.Certificates.Find(X509FindType.FindByThumbprint, CertificateThumbprint, false);
-                _certificate = certCollection.GetEnumerator().Current;
+                store.Open(OpenFlags.ReadOnly);
+                var certCollection =
+                    store.Certificates.Find(X509FindType.FindByThumbprint, CertificateThumbprint, false);
+                if (certCollection.Count > 0)
+                {
+                    Log.Verbose("Found [{@certs}] in store [{@store}] location [{@location}]", 
+                        certCollection.Count, StoreName, StoreLocation);
+                    _certificate = certCollection[0];
+                }
+                else
+                {
+                    Log.Verbose("Unable to find the certificate in the specified store.");
+                }
             }
-            else if (!string.IsNullOrWhiteSpace(CertificateFile))
+
+            if (_certificate == null && !string.IsNullOrWhiteSpace(CertificateFile))
             {
                 _certificate = new X509Certificate(CertificateFile, CertificatePassword);
             }
-            else
+            
+            if (_certificate == null)
             {
                 Log.Error("Unable to load certificate, please provide a valid certificate");
                 app.ShowHelp();
